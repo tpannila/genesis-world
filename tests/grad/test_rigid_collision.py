@@ -265,7 +265,7 @@ def test_contact_per_step_force_grad_matches_fd(
 @pytest.mark.required
 @pytest.mark.precision("64")
 @pytest.mark.debug(False)
-def test_contact_force_transpose_matches_fd():
+def test_contact_force_transpose_matches_fd(show_viewer):
     # The per-step FD cases above perturb the control forces, under which the contact normals barely move: they
     # exercise the row-force distribution of the net-contact-force transpose but not its contact-frame chain, the
     # term the forward gains through the frame directions d1, d2 = qd_orthogonals(normal) of every row. This test
@@ -289,7 +289,11 @@ def test_contact_force_transpose_matches_fd():
             constraint_timeconst=0.02,
             impratio=2.0,
         ),
-        show_viewer=False,
+        viewer_options=gs.options.ViewerOptions(
+            camera_pos=(1.5, -1.5, 1.3),
+            camera_lookat=(0.15, 0.1, 0.2),
+        ),
+        show_viewer=show_viewer,
     )
     scene.add_entity(gs.morphs.Plane(), vis_mode="collision")
     # A fixed box with a tilted top face and a sphere pressed into it: the contact normal follows the face, whose
@@ -406,14 +410,14 @@ def test_contact_force_transpose_matches_fd():
 @pytest.mark.required
 @pytest.mark.precision("64")
 @pytest.mark.debug(False)
-def test_contact_pose_grad_matches_fd():
+def test_contact_pose_grad_matches_fd(show_viewer):
     # The per-step FD cases perturb the control forces, under which the contact normals of their face contacts
     # stay put to first order, so the contact-frame chain of the net-contact-force transpose cannot surface in
     # their gradients, and the directed transpose test above drives the private kernels directly. This test
     # covers the chain through the public rollout: a sphere resting in the groove of two fixed boxes touches
     # their top inner edges, whose contact normals rotate when a pose moves, so the gradients of a loss reading
     # get_links_net_contact_force() w.r.t. the sphere pose and a wall pose carry the frame chain end to end.
-    def _build_groove():
+    def _build_groove(show_viewer):
         scene = gs.Scene(
             sim_options=gs.options.SimOptions(
                 substeps=2,
@@ -423,7 +427,11 @@ def test_contact_pose_grad_matches_fd():
                 constraint_timeconst=0.02,
                 impratio=2.0,
             ),
-            show_viewer=False,
+            viewer_options=gs.options.ViewerOptions(
+                camera_pos=(0.6, -1.7, 1.3),
+                camera_lookat=(0.0, 0.0, 0.15),
+            ),
+            show_viewer=show_viewer,
         )
         walls = [
             scene.add_entity(
@@ -457,7 +465,7 @@ def test_contact_pose_grad_matches_fd():
     # to converge inside it: larger steps bias the reference through the cone's curvature.
     fd_eps = 1e-6
 
-    scene_ana, walls_ana, sphere_ana = _build_groove()
+    scene_ana, walls_ana, sphere_ana = _build_groove(show_viewer)
 
     def settle(scene, sphere):
         for _ in range(n_settle):
@@ -486,7 +494,8 @@ def test_contact_pose_grad_matches_fd():
     loss = (sphere_ana.get_links_net_contact_force() ** 2).sum()
     scene_ana.backward(loss)
 
-    scene_fd, walls_fd, sphere_fd = _build_groove()
+    # The viewer follows the analytical scene alone, like make_diff_scene_pair's diff-mode scene.
+    scene_fd, walls_fd, sphere_fd = _build_groove(False)
 
     # The finite-difference side reuses the analytical scene's settled state instead of re-settling per
     # evaluation: writing the settled dofs back places the sphere exactly there, and the setters zero the
